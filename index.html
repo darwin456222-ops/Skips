@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Pets: Clicker & Merge</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0d1117;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Sol Tıklama Alanı */
+        #click-section {
+            width: 35%;
+            background: #161b22;
+            border-right: 3px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            z-index: 5;
+        }
+
+        #main-cookie {
+            width: 160px;
+            height: 160px;
+            background: #21262d;
+            border: 6px solid #ffb300;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            box-shadow: 0 0 25px rgba(255,179,0,0.3);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        #main-cookie:active {
+            transform: scale(0.92);
+            box-shadow: 0 0 10px rgba(255,179,0,0.2);
+        }
+
+        .stat-panel {
+            background: rgba(0,0,0,0.4);
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            min-width: 150px;
+            border: 1px solid #30363d;
+        }
+
+        .stat-val { font-size: 24px; font-weight: bold; color: #2ed573; }
+        .stat-gps { font-size: 14px; color: #00d2d3; margin-top: 4px; }
+
+        #buy-btn {
+            background: #218838;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 10px rgba(33,136,56,0.4);
+        }
+        #buy-btn:hover { background: #2ed573; transform: translateY(-2px); }
+        #buy-btn:disabled { background: #343a40; color: #6c757d; cursor: not-allowed; box-shadow: none; }
+
+        /* Sağ Birleştirme Alanı */
+        #merge-section {
+            width: 65%;
+            position: relative;
+            background: #0d1117;
+            background-image: radial-gradient(#1f242c 15%, transparent 16%);
+            background-size: 30px 30px;
+        }
+
+        /* Birleşen Karakter Daireleri */
+        .pet-item {
+            position: absolute;
+            width: 85px;
+            height: 85px;
+            border-radius: 50%;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            background-size: cover;
+            background-position: center;
+            background-color: #21262d;
+            transition: border-color 0.2s;
+            touch-action: none; /* Mobil kaydırma çakışmasını önler */
+        }
+        .pet-item:active { cursor: grabbing; z-index: 100; }
+
+        .pet-badge {
+            position: absolute;
+            bottom: -5px;
+            background: #000;
+            color: #ffea00;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 6px;
+            border-radius: 8px;
+            border: 1px solid #ffea00;
+            white-space: nowrap;
+        }
+
+        /* Yüzen Yazı Efekti */
+        .float-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 20px;
+            color: #2ed573;
+            pointer-events: none;
+            animation: floatUp 0.6s forwards ease-out;
+            z-index: 20;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-40px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SOL PANEL: CLICKER -->
+    <div id="click-section">
+        <div class="stat-panel">
+            <div>Toplam Mama</div>
+            <div id="food-count" class="stat-val">0</div>
+            <div id="gps-count" class="stat-gps">+0/sn</div>
+        </div>
+        
+        <div id="main-cookie" onclick="clickCookie(event)">🐾</div>
+        <p style="color: #8b949e; font-size: 12px; margin-top: 10px;">Patiye Tıkla Mama Kazan!</p>
+        
+        <br><br>
+        
+        <button id="buy-btn" onclick="buyEgg()">Mini Gus Satın Al<br><span id="egg-cost" style="font-size:12px; color:#ffb300;">Maliyet: 10</span></button>
+    </div>
+
+    <!-- SAĞ PANEL: MERGE BOARD -->
+    <div id="merge-section" id="board"></div>
+
+    <script>
+        let food = 0;
+        let eggCost = 10;
+        let gps = 0; // Saniyelik üretim
+
+        // 14 Seviyelik Evrim Listesi
+        const petData = {
+            1:  { name: "Mini Gus",    color: "#ff4757", img: "mini.gus.jpg",    income: 1 },
+            2:  { name: "Mini Flip",   color: "#2ed573", img: "mini.flip.jpg",   income: 3 },
+            3:  { name: "Mini Sugar",  color: "#1e90ff", img: "mini.sugar.jpg",  income: 8 },
+            4:  { name: "Mini Dot",    color: "#ffa502", img: "mini.dot.jpg",    income: 20 },
+            5:  { name: "Mini Squeak", color: "#9b59b6", img: "mini.squeak.jpg", income: 50 },
+            6:  { name: "Mini Blinky", color: "#00d2d3", img: "mini.blinky.jpg", income: 120 },
+            7:  { name: "Mini Yeyet",  color: "#ffea00", img: "mini.yeyet.jpg",  income: 300 },
+            8:  { name: "Gus",         color: "#ff6b81", img: "gus.jpg",         income: 800 },
+            9:  { name: "Flip",        color: "#7bed9f", img: "flip.jpg",        income: 2000 },
+            10: { name: "Sugar",       color: "#70a1ff", img: "sugar.jpg",       income: 5000 },
+            11: { name: "Dot",         color: "#eccc68", img: "dot.jpg",         income: 13000 },
+            12: { name: "Squeak",      color: "#c56cf0", img: "squeak.jpg",      income: 35000 },
+            13: { name: "Blinky",      color: "#18dcff", img: "blinky.jpg",      income: 90000 },
+            14: { name: "Yeyet",       color: "#fff200", img: "yeyet.png",       income: 250000 }
+        };
+
+        const mergeSection = document.getElementById('merge-section');
+
+        // Tıklama Fonksiyonu
+        function clickCookie(e) {
+            food += 1;
+            updateUI();
+            createFloatText(e.clientX, e.clientY, "+1");
+        }
+
+        // Uçan Yazı Efekti
+        function createFloatText(x, y, text) {
+            const txt = document.createElement('div');
+            txt.classList.add('float-text');
+            txt.innerText = text;
+            txt.style.left = x + 'px';
+            txt.style.top = y + 'px';
+            document.body.appendChild(txt);
+            setTimeout(() => txt.remove(), 600);
+        }
+
+        // Satın Alma Fonksiyonu
+        function buyEgg() {
+            if (food >= eggCost) {
+                food -= eggCost;
+                eggCost = Math.floor(eggCost * 1.3); // Fiyat kademeli artar
+                spawnPet(1); // 1. Seviye Mini Gus doğar
+                updateUI();
+            }
+        }
+
+        // Ekranda Rastgele Boş Yere Pet Yerleştirme
+        function spawnPet(level, targetX = null, targetY = null) {
+            const pet = document.createElement('div');
+            pet.classList.add('pet-item');
+            pet.dataset.level = level;
+
+            const info = petData[level];
+            pet.style.borderColor = info.color;
+            pet.style.backgroundImage = `url('${info.img}')`;
+            
+            pet.innerHTML = `<span class="pet-badge">Lvl ${level}: ${info.name}</span>`;
+
+            // Konum belirleme
+            let posX = targetX !== null ? targetX : Math.random() * (mergeSection.clientWidth - 90);
+            let posY = targetY !== null ? targetY : Math.random() * (mergeSection.clientHeight - 90);
+            
+            // Sınırların dışına taşmasını engelle
+            posX = Math.max(10, Math.min(posX, mergeSection.clientWidth - 100));
+            posY = Math.max(10, Math.min(posY, mergeSection.clientHeight - 100));
+
+            pet.style.left = posX + 'px';
+            pet.style.top = posY + 'px';
+
+            // Sürükle-Bırak Mekanikleri (Hem Mouse Hem Touch Destekli)
+            setupDragAndDrop(pet);
+
+            mergeSection.appendChild(pet);
+            calculateGPS();
+        }
+
+        function setupDragAndDrop(element) {
+            let active = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            // İlk offsetleri ayarla
+            xOffset = parseFloat(element.style.left);
+            yOffset = parseFloat(element.style.top);
+
+            element.addEventListener('mousedown', dragStart);
+            element.addEventListener('touchstart', dragStart, {passive: false});
+
+            function dragStart(e) {
+                if (e.type === "touchstart") {
+                    initialX = e.touches[0].clientX - xOffset;
+                    initialY = e.touches[0].clientY - yOffset;
+                } else {
+                    initialX = e.clientX - xOffset;
+                    initialY = e.clientY - yOffset;
+                }
+                active = true;
+                window.addEventListener('mousemove', drag);
+                window.addEventListener('touchmove', drag, {passive: false});
+                window.addEventListener('mouseup', dragEnd);
+                window.addEventListener('touchend', dragEnd);
+            }
+
+            function drag(e) {
+                if (active) {
+                    e.preventDefault();
+                    if (e.type === "touchmove") {
+                        currentX = e.touches[0].clientX - initialX;
+                        currentY = e.touches[0].clientY - initialY;
+                    } else {
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                    }
+
+                    // Alan dışına taşmayı engelle
+                    currentX = Math.max(0, Math.min(currentX, mergeSection.clientWidth - 90));
+                    currentY = Math.max(0, Math.min(currentY, mergeSection.clientHeight - 90));
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    element.style.left = currentX + 'px';
+                    element.style.top = currentY + 'px';
+                }
+            }
+
+            function dragEnd() {
+                active = false;
+                window.removeEventListener('mousemove', drag);
+                window.removeEventListener('touchmove', drag);
+                window.removeEventListener('mouseup', dragEnd);
+                window.removeEventListener('touchend', dragEnd);
+
+                checkMerge(element);
+            }
+        }
+
+        // Çarpışma ve Birleşme Kontrolü
+        function checkMerge(dragged) {
+            const draggedRect = dragged.getBoundingClientRect();
+            const allPets = document.querySelectorAll('.pet-item');
+
+            for (let other of allPets) {
+                if (other === dragged) continue;
+
+                const otherRect = other.getBoundingClientRect();
+                
+                // Merkezlerin yakınlığına bakarak çarpışma kontrolü
+                const dist = Math.hypot(
+                    (draggedRect.left + 42) - (otherRect.left + 42),
+                    (draggedRect.top + 42) - (otherRect.top + 42)
+                );
+
+                // Eğer iki daire birbirine çok yakınsa ve seviyeleri aynıysa
+                if (dist < 50 && dragged.dataset.level === other.dataset.level) {
+                    let currentLevel = parseInt(dragged.dataset.level);
+                    
+                    // Maksimum seviye kontrolü (Seviye 14 son)
+                    if (currentLevel < 14) {
+                        let nextLevel = currentLevel + 1;
+                        let midX = parseFloat(other.style.left);
+                        let midY = parseFloat(other.style.top);
+
+                        // İki eski pet silinir
+                        dragged.remove();
+                        other.remove();
+
+                        // Yeni üst seviye pet doğar
+                        spawnPet(nextLevel, midX, midY);
+                        
+                        // Birleşme tebrik yazısı
+                        createFloatText(midX + 130, midY, `EVRİM! Lvl ${nextLevel} ✨`);
+                        calculateGPS();
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Saniyelik Pasif Gelir Hesaplama
+        function calculateGPS() {
+            gps = 0;
+            const allPets = document.querySelectorAll('.pet-item');
+            allPets.forEach(p => {
+                let lvl = parseInt(p.dataset.level);
+                gps += petData[lvl].income;
+            });
+            document.getElementById('gps-count').innerText = `+${gps}/sn`;
+        }
+
+        // Arayüz Güncelleme
+        function updateUI() {
+            document.getElementById('food-count').innerText = food;
+            document.getElementById('egg-cost').innerText = `Maliyet: ${eggCost}`;
+            document.getElementById('buy-btn').disabled = food < eggCost;
+        }
+
+        // Pasif Gelir Zamanlayıcısı (Her Saniye Çalışır)
+        setInterval(() => {
+            if (gps > 0) {
+                food += gps;
+                updateUI();
+            }
+        }, 1000);
+
+        // İlk UI Güncellemesi
+        updateUI();
+    </script>
+</body>
+</html>
